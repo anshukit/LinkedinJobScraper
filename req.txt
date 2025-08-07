@@ -1,0 +1,10 @@
+playwright
+langchain-openai
+openai
+python-dotenv
+fastapi 
+uvicorn 
+PyPDF2
+pdfplumber
+webdriver-manager==3.8.6
+selenium==4.10.0
