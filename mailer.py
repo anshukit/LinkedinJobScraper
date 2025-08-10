@@ -132,14 +132,14 @@ from prompt import email_prompt_template, resume_summary_prompt_template
 from tqdm import tqdm
 
 # # 🔐 Email senders
-# SENDER_EMAILS = [
-#     {"email": os.getenv("EMAIL_ID_1"), "password": os.getenv("EMAIL_PASS_1")},
-#     {"email": os.getenv("EMAIL_ID_2"), "password": os.getenv("EMAIL_PASS_2")},
-#     {"email": os.getenv("EMAIL_ID_3"), "password": os.getenv("EMAIL_PASS_3")},
-# ]
 SENDER_EMAILS = [
     {"email": os.getenv("EMAIL_ID_1"), "password": os.getenv("EMAIL_PASS_1")},
+    {"email": os.getenv("EMAIL_ID_2"), "password": os.getenv("EMAIL_PASS_2")},
+    {"email": os.getenv("EMAIL_ID_3"), "password": os.getenv("EMAIL_PASS_3")},
 ]
+# SENDER_EMAILS = [
+#     {"email": os.getenv("EMAIL_ID_1"), "password": os.getenv("EMAIL_PASS_1")},
+# ]
 
 RESUME_PATH = os.getenv("RESUME_PATH", "anshu_singh_resume.pdf")
 EMAIL_LOG_FILE = "data/email_log.csv"
@@ -152,7 +152,7 @@ def generate_resume_summary(resume_text):
 
 # 🧠 Generate personalized email content using summary
 def generate_email(post_text, resume_summary):
-    prompt = email_prompt_template(post_text=post_text, resume_summary=resume_summary)
+    prompt = email_prompt_template(post_text=post_text,resume_summary_json=resume_summary)
     return llm.invoke(prompt).content.strip()
 
 # 📜 Load email log to avoid duplicates
@@ -221,7 +221,6 @@ def email_worker(sender, posts, resume_summary, results):
 def send_emails_batch(post_list, resume_text):
     print("\n📄 Generating structured resume summary using LLM...")
     resume_summary = generate_resume_summary(resume_text)
-
     total_posts = len(post_list)
     num_senders = len(SENDER_EMAILS)
     chunk_size = (total_posts + num_senders - 1) // num_senders

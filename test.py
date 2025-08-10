@@ -103,45 +103,6 @@ def show_apply_links(data_loader: DataLoader):
     progress_bar.empty()  # Remove the bar after completion
     st.success("✅ All apply links processed.")
 
-# def show_apply_links(data_loader: DataLoader):
-#     st.header("Apply Links Viewer")
-#     links_data = data_loader.load_apply_links()
-
-#     if not links_data:
-#         st.warning("No apply links found. Run the main application first to generate data.")
-#         return
-
-#     st.success(f"Found {len(links_data)} apply links")
-#     resolver = LinkedInLinkResolver()
-#     for item in links_data:
-#         with st.expander(f"{item['role']} at {item['company']}", expanded=False):
-#             st.write(f"**Eligibility:** {item['eligibility']}")
-
-#             raw_links = item['original_link']
-
-#             # Normalize and deduplicate
-#             if isinstance(raw_links, str):
-#                 links = list(set([unquote(link.strip()) for link in raw_links.replace('\n', ',').split(',') if link.strip()]))
-#             elif isinstance(raw_links, list):
-#                 links = list(set([unquote(link.strip()) for link in raw_links if isinstance(link, str) and link.strip()]))
-#             else:
-#                 links = []
-
-#             valid_links = []
-#             for link in links:
-#                 if link.startswith("http") and check_link_validity(link):
-#                     valid_links.append(link)
-
-#             if not valid_links:
-#                 st.warning("⚠️ No valid links found for this post.")
-#                 continue
-            
-#             # Display full clickable links
-#             st.markdown("**Apply Link(s):**")
-#             for idx, link in enumerate(valid_links, 1):
-#                 link = resolver.resolve_url(link)
-#                 st.markdown(f"- [🔗 {link}]({link})", unsafe_allow_html=True)
-
 def show_analytics(data_loader: DataLoader):
     try:
         stats = data_loader.get_data_stats()
