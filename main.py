@@ -130,32 +130,6 @@ def format_time_display(time_str: str) -> str:
     if not time_str:
         return "Unknown time"
     return time_str.replace("ago", "").strip() + " ago"
-
-# @st.cache_data(show_spinner=False)
-# def load_jobs_data(filtered_jobs_path: Path) -> List[Dict]:
-#     """Load jobs, dedupe by URL, sort newest first"""
-#     if not filtered_jobs_path.exists():
-#         return []
-#     try:
-#         jobs = json.loads(filtered_jobs_path.read_text(encoding="utf-8"))
-#         unique = {}
-#         for j in jobs:
-#             url = convert_to_view_url(j.get("job_url"))
-#             if url and url not in unique:
-#                 j["job_url"] = url
-#                 jp = j.get("date_posted", "")
-#                 j["formatted_time"] = format_time_display(jp)
-#                 j["time_category"] = get_time_category(jp)
-#                 unique[url] = j
-#         return sorted(
-#             unique.values(),
-#             key=lambda x: parse_time_ago(x.get("date_posted", "")) or datetime.min,
-#             reverse=True,
-#         )
-#     except Exception as e:
-#         logger.exception("Error loading jobs")
-#         st.error(f"Error loading jobs: {e}")
-#         return []
 @st.cache_data(show_spinner=False)
 def load_jobs_data(filtered_jobs_path: Path) -> List[Dict]:
     """Load jobs, dedupe by URL, sort newest first"""

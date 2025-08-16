@@ -93,23 +93,6 @@ class FileManager:
             logging.error(f"❌ Error loading jobs from {file_path}: {e}")
             return []
 
-    # def save_jsonl_safe(self, data_list: List[Dict[str, Any]], file_path: str) -> bool:
-    #     """Overwrite JSONL file directly (no backups)."""
-    #     try:
-    #         self.ensure_directory_exists(file_path)
-    #         validated_data = [
-    #             DataValidator.validate_post_data(item.copy())
-    #             for item in data_list if isinstance(item, dict)
-    #         ]
-    #         with open(file_path, "w", encoding="utf-8") as f:
-    #             for item in validated_data:
-    #                 f.write(json.dumps(item, ensure_ascii=False) + "\n")
-    #         logger.info(f"Saved {len(validated_data)} items to {file_path}")
-    #         return True
-    #     except Exception as e:
-    #         logger.error(f"Error saving JSONL file {file_path}: {e}")
-    #         return False
-
     def save_csv_safe(self, data_list: List[Dict[str, Any]], file_path: str,
                       fieldnames: List[str] = None) -> bool:
         """Overwrite CSV file directly (no backups)."""
