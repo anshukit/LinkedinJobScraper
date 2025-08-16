@@ -6,6 +6,8 @@ from playwright.async_api import async_playwright, TimeoutError
 from tqdm import tqdm
 import asyncio
 
+from job_scraper import normalize_cookie
+
 load_dotenv()
 LI_AT = os.getenv("LINKEDIN_LI_AT")
 
@@ -136,6 +138,9 @@ async def scrape_all_keywords_parallel(keywords: list[str], posts_per_keyword: i
         # ✅ Load cookies.json file
         with open("cookies.json", "r") as f:
             cookies = json.load(f)
+        
+        cookies = [normalize_cookie(c) for c in cookies]
+   
         await context.add_cookies(cookies)
         print("✅ LinkedIn cookies loaded successfully")
 

@@ -201,6 +201,10 @@ async def scrape_jobs(page, keyword, total_jobs, experience_levels, progress_bar
 #         json.dump(filtered_jobs, f, ensure_ascii=False, indent=4)
 
 #     logging.info(f"✅ Jobs saved: {len(filtered_jobs)} → data/filtered_jobs.json")
+def normalize_cookie(cookie):
+    if cookie.get("sameSite") in ["unspecified", "no_restriction", ""]:
+        cookie["sameSite"] = "Lax"   # or "None"
+    return cookie
 async def scrapJobsPost(max_exp: int, total_jobs: int):
     """Main function to scrape LinkedIn job posts with cookies.json auth."""
     experience_levels = "2%2C3%2C4"
@@ -215,7 +219,9 @@ async def scrapJobsPost(max_exp: int, total_jobs: int):
         try:
             with open("cookies.json", "r") as f:
                 cookies = json.load(f)
-            await context.add_cookies(cookies)
+                
+            cookies = [normalize_cookie(c) for c in cookies]
+            await context.add_cookies(cookies)    
             logging.info("✅ LinkedIn cookies loaded successfully (cookies.json)")
         except Exception as e:
             logging.error(f"❌ Failed to load cookies.json: {e}")
