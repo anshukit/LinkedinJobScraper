@@ -10,5 +10,5 @@ llm = AzureChatOpenAI(
     deployment_name=os.getenv("AZURE_OPENAI_DEPLOYMENT"),
     openai_api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
     temperature=0.3,
-    max_tokens=2000,
+    max_tokens=5000,
 )

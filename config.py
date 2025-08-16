@@ -1,3 +1,6 @@
+import os
+from typing import Dict
+
 DATA_DIR = "data"
 
 BATCH_SIZE = 100
@@ -6,9 +9,6 @@ EMAIL_LIMIT = 100
 EMAIL_BATCH_SIZE = 10
 EMAIL_BATCH_DELAY = 5  # Delay between email batches in seconds
 
-import os
-from typing import Dict
-
 class Config:
     def __init__(self):
         self.data_dir = "data"
@@ -16,8 +16,8 @@ class Config:
         self.resume_path = os.getenv("RESUME_PATH", "resume.pdf")
         self.linkedin_cookie = os.getenv("LINKEDIN_LI_AT", "")
         self.email_accounts = os.getenv("EMAIL_ACCOUNTS", "").split(",")
-        
-        # AI config (if needed)
+
+        # AI config
         class AI:
             def __init__(self):
                 self.api_key = os.getenv("AZURE_OPENAI_KEY", "")

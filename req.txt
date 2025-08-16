@@ -7,3 +7,4 @@ pdfplumber
 webdriver-manager==3.8.6
 selenium==4.10.0
 streamlit
+psutil

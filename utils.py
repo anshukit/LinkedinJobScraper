@@ -8,7 +8,13 @@ from datetime import datetime
 from config import config
 
 logger = logging.getLogger(__name__)
+from config import DATA_DIR
 
+def load_keywords(file_path) -> list[str]:
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"Keyword file not found: {file_path}")
+    with open(file_path, "r", encoding="utf-8") as f:
+        return [line.strip() for line in f if line.strip()]
 class DataValidator:
     @staticmethod
     def validate_post_data(post: Dict[str, Any]) -> Dict[str, Any]:
@@ -25,21 +31,26 @@ class DataValidator:
         for field, default in required_fields.items():
             if field not in post or post[field] is None:
                 post[field] = default
+
         post["Is_Job_Post"] = bool(post.get("Is_Job_Post", False))
         post["Post_Index"] = int(post.get("Post_Index", 1))
+
         for field in ["Role", "Company", "Apply_Link", "Contact_Email", "Job_Description"]:
             if isinstance(post.get(field), str):
                 post[field] = post[field].strip()
                 if not post[field] or post[field].lower() in ["none", "null", "n/a", ""]:
                     post[field] = "Not Provided"
+
         email = post.get("Contact_Email", "")
         if email != "Not Provided" and not DataValidator.is_valid_email(email):
             logger.warning(f"Invalid email format: {email}")
             post["Contact_Email"] = "Not Provided"
+
         url = post.get("Apply_Link", "")
         if url != "Not Provided" and not DataValidator.is_valid_url(url):
             logger.warning(f"Invalid URL format: {url}")
             post["Apply_Link"] = "Not Provided"
+
         return post
 
     @staticmethod
@@ -54,6 +65,7 @@ class DataValidator:
             return False
         return bool(re.match(r'^https?://[^\s/$.?#].[^\s]*$', url.strip()))
 
+
 class FileManager:
     def __init__(self):
         self.file_paths = config.get_file_paths()
@@ -63,53 +75,60 @@ class FileManager:
         if directory and not os.path.exists(directory):
             os.makedirs(directory, exist_ok=True)
             logger.info(f"Created directory: {directory}")
-
-    def create_backup(self, file_path: str) -> Optional[str]:
+    
+    def load_json_safe(file_path):
+        """Load JSON safely, return [] if file is empty or invalid."""
         if not os.path.exists(file_path):
-            return None
-        try:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            backup_path = f"{file_path}.backup_{timestamp}"
-            with open(file_path, 'r', encoding='utf-8') as src, open(backup_path, 'w', encoding='utf-8') as dst:
-                dst.write(src.read())
-            logger.info(f"Created backup: {backup_path}")
-            return backup_path
-        except Exception as e:
-            logger.error(f"Failed to create backup for {file_path}: {e}")
-            return None
+            logging.warning(f"⚠️ File not found: {file_path}")
+            return []
 
-    def save_jsonl_safe(self, data_list: List[Dict[str, Any]], file_path: str, create_backup: bool = True) -> bool:
+        if os.path.getsize(file_path) == 0:
+            logging.warning(f"⚠️ File is empty: {file_path}")
+            return []
+
         try:
-            self.ensure_directory_exists(file_path)
-            if create_backup and os.path.exists(file_path):
-                self.create_backup(file_path)
-            validated_data = [DataValidator.validate_post_data(item.copy()) for item in data_list if isinstance(item, dict)]
-            with open(file_path, "w", encoding="utf-8") as f:
-                for item in validated_data:
-                    f.write(json.dumps(item, ensure_ascii=False) + "\n")
-            logger.info(f"Saved {len(validated_data)} items to {file_path}")
-            return True
+            with open(file_path, "r", encoding="utf-8") as f:
+                return json.load(f)
         except Exception as e:
-            logger.error(f"Error saving JSONL file {file_path}: {e}")
-            return False
+            logging.error(f"❌ Error loading jobs from {file_path}: {e}")
+            return []
+
+    # def save_jsonl_safe(self, data_list: List[Dict[str, Any]], file_path: str) -> bool:
+    #     """Overwrite JSONL file directly (no backups)."""
+    #     try:
+    #         self.ensure_directory_exists(file_path)
+    #         validated_data = [
+    #             DataValidator.validate_post_data(item.copy())
+    #             for item in data_list if isinstance(item, dict)
+    #         ]
+    #         with open(file_path, "w", encoding="utf-8") as f:
+    #             for item in validated_data:
+    #                 f.write(json.dumps(item, ensure_ascii=False) + "\n")
+    #         logger.info(f"Saved {len(validated_data)} items to {file_path}")
+    #         return True
+    #     except Exception as e:
+    #         logger.error(f"Error saving JSONL file {file_path}: {e}")
+    #         return False
 
     def save_csv_safe(self, data_list: List[Dict[str, Any]], file_path: str,
-                      fieldnames: List[str] = None, create_backup: bool = True) -> bool:
+                      fieldnames: List[str] = None) -> bool:
+        """Overwrite CSV file directly (no backups)."""
         try:
             self.ensure_directory_exists(file_path)
             if not data_list:
                 logger.warning("No data to save to CSV")
                 return False
-            if create_backup and os.path.exists(file_path):
-                self.create_backup(file_path)
+
             if not fieldnames:
                 fieldnames = ["Role", "Company", "Location", "Apply_Link", "Contact_Email", "Eligibility"]
-            valid_data = [item for item in data_list if (
-                isinstance(item, dict) and (
+
+            valid_data = [
+                item for item in data_list
+                if isinstance(item, dict) and (
                     DataValidator.is_valid_url(item.get("Apply_Link", "")) or
                     DataValidator.is_valid_email(item.get("Contact_Email", ""))
                 )
-            )]
+            ]
             with open(file_path, "w", newline="", encoding="utf-8") as f:
                 writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction='ignore')
                 writer.writeheader()
@@ -122,6 +141,7 @@ class FileManager:
             return False
 
     def load_jsonl_safe(self, file_path: str) -> List[Dict[str, Any]]:
+        """Load JSONL file safely."""
         data = []
         if not os.path.exists(file_path):
             logger.warning(f"File not found: {file_path}")
@@ -139,6 +159,7 @@ class FileManager:
         except Exception as e:
             logger.error(f"Failed to load {file_path}: {e}")
             return []
+
 
 class DataProcessor:
     def __init__(self):
@@ -182,22 +203,8 @@ class DataProcessor:
                 logger.error(f"Email log error: {e}")
         return stats
 
-    def cleanup_old_backups(self, max_backups: int = 5) -> None:
-        for dir_path in [config.data_dir, config.logs_dir]:
-            if not os.path.exists(dir_path):
-                continue
-            backup_files = [(f, os.path.getmtime(os.path.join(dir_path, f))) 
-                            for f in os.listdir(dir_path) if '.backup_' in f]
-            backup_files.sort(key=lambda x: x[1], reverse=True)
-            for f, _ in backup_files[max_backups:]:
-                try:
-                    os.remove(os.path.join(dir_path, f))
-                    logger.info(f"Deleted old backup: {f}")
-                except Exception as e:
-                    logger.error(f"Failed to delete backup {f}: {e}")
 
-# --- Global Instances and Legacy-Compatible Functions ---
-
+# --- Global Instances and Helper Functions ---
 file_manager = FileManager()
 data_processor = DataProcessor()
 
@@ -222,5 +229,5 @@ def clean_json(text: str) -> Optional[Dict[str, Any]]:
 def validate_data_integrity() -> Dict[str, Any]:
     return data_processor.get_data_statistics()
 
-def cleanup_old_files() -> None:
-    data_processor.cleanup_old_backups()
+
+
