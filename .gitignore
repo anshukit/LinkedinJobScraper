@@ -13,9 +13,7 @@ resumes/
 
 # Data files (may contain scraped personal data)
 
-*.jsonl
-*.csv
-*.log
+
 
 # Backup files
 *.backup_*
