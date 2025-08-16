@@ -162,8 +162,47 @@ async def scrape_jobs(page, keyword, total_jobs, experience_levels, progress_bar
 
     return raw_results
 
+# async def scrapJobsPost(max_exp: int, total_jobs: int):
+#     """Main function to scrape LinkedIn job posts."""
+#     experience_levels = "2%2C3%2C4"
+#     keywords = load_keywords("keywordsforjob.txt")
+#     jobs_per_keyword = max(1, total_jobs // len(keywords))
+
+#     async with async_playwright() as p:
+#         browser = await p.chromium.launch(headless=True)
+#         context = await browser.new_context()
+
+#         await context.add_cookies([{
+#             "name": "li_at",
+#             "value": LI_AT,
+#             "domain": ".linkedin.com",
+#             "path": "/",
+#             "httpOnly": True,
+#             "secure": True,
+#             "sameSite": "Lax"
+#         }])
+
+#         page = await context.new_page()
+#         all_raw = []
+
+#         from tqdm import tqdm
+#         with tqdm(total=total_jobs, desc="Scraping Progress", unit="job") as progress_bar:
+#             for keyword in keywords:
+#                 logging.info(f"🔍 Scraping keyword: {keyword}")
+#                 raw = await scrape_jobs(page, keyword, jobs_per_keyword, experience_levels, progress_bar)
+#                 all_raw.extend(raw)
+
+#         await browser.close()
+
+#     filtered_jobs = filter_jobs_by_experience(all_raw, max_exp)
+#     os.makedirs("data", exist_ok=True)
+
+#     with open("data/filtered_jobs.json", "w", encoding="utf-8") as f:
+#         json.dump(filtered_jobs, f, ensure_ascii=False, indent=4)
+
+#     logging.info(f"✅ Jobs saved: {len(filtered_jobs)} → data/filtered_jobs.json")
 async def scrapJobsPost(max_exp: int, total_jobs: int):
-    """Main function to scrape LinkedIn job posts."""
+    """Main function to scrape LinkedIn job posts with cookies.json auth."""
     experience_levels = "2%2C3%2C4"
     keywords = load_keywords("keywordsforjob.txt")
     jobs_per_keyword = max(1, total_jobs // len(keywords))
@@ -172,15 +211,15 @@ async def scrapJobsPost(max_exp: int, total_jobs: int):
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context()
 
-        await context.add_cookies([{
-            "name": "li_at",
-            "value": LI_AT,
-            "domain": ".linkedin.com",
-            "path": "/",
-            "httpOnly": True,
-            "secure": True,
-            "sameSite": "Lax"
-        }])
+        # ✅ Load cookies.json instead of only li_at
+        try:
+            with open("cookies.json", "r") as f:
+                cookies = json.load(f)
+            await context.add_cookies(cookies)
+            logging.info("✅ LinkedIn cookies loaded successfully (cookies.json)")
+        except Exception as e:
+            logging.error(f"❌ Failed to load cookies.json: {e}")
+            return
 
         page = await context.new_page()
         all_raw = []

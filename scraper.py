@@ -1,3 +1,4 @@
+import json
 import os
 import re
 from dotenv import load_dotenv
@@ -76,7 +77,55 @@ async def scrape_posts_on_page(page, search_url, max_posts, progress_bar):
             break
 
     return posts_data
-async def scrape_all_keywords_parallel(keywords: list[str], posts_per_keyword: int, max_concurrent_tabs):
+# async def scrape_all_keywords_parallel(keywords: list[str], posts_per_keyword: int, max_concurrent_tabs):
+#     total_posts = posts_per_keyword * len(keywords)
+#     progress_bar = tqdm(total=total_posts, desc="Total Scraping Progress", ncols=80)
+
+#     async with async_playwright() as p:
+#         browser = await p.chromium.launch(headless=True)
+#         context = await browser.new_context()
+
+#         await context.add_cookies([{
+#             "name": "li_at",
+#             "value": LI_AT,
+#             "domain": ".linkedin.com",
+#             "path": "/",
+#             "httpOnly": True,
+#             "secure": True,
+#             "sameSite": "Lax"
+#         }])
+
+#         semaphore = asyncio.Semaphore(max_concurrent_tabs)
+#         global_seen = set()  # ✅ tracks all unique posts across all keywords
+
+#         async def scrape_keyword(keyword):
+#             async with semaphore:
+#                 encoded_query = keyword.replace(" ", "%20")
+#                 search_url = f"https://www.linkedin.com/search/results/content/?datePosted=%22past-24h%22&keywords={encoded_query}&origin=FACETED_SEARCH"
+#                 page = await context.new_page()
+#                 try:
+#                     posts = await scrape_posts_on_page(page, search_url, posts_per_keyword, progress_bar)
+#                     # ✅ Filter out duplicates across keywords
+#                     unique_posts = []
+#                     for post in posts:
+#                         if post not in global_seen:
+#                             global_seen.add(post)
+#                             unique_posts.append(post)
+#                     return unique_posts
+#                 finally:
+#                     await page.close()
+
+#         tasks = [scrape_keyword(k) for k in keywords]
+#         results = await asyncio.gather(*tasks)
+
+#         await browser.close()
+#         progress_bar.close()
+
+#         # ✅ Flatten final results (already unique globally)
+#         all_posts = [post for sublist in results for post in sublist]
+#         return all_posts
+
+async def scrape_all_keywords_parallel(keywords: list[str], posts_per_keyword: int, max_concurrent_tabs: int):
     total_posts = posts_per_keyword * len(keywords)
     progress_bar = tqdm(total=total_posts, desc="Total Scraping Progress", ncols=80)
 
@@ -84,15 +133,11 @@ async def scrape_all_keywords_parallel(keywords: list[str], posts_per_keyword: i
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context()
 
-        await context.add_cookies([{
-            "name": "li_at",
-            "value": LI_AT,
-            "domain": ".linkedin.com",
-            "path": "/",
-            "httpOnly": True,
-            "secure": True,
-            "sameSite": "Lax"
-        }])
+        # ✅ Load cookies.json file
+        with open("cookies.json", "r") as f:
+            cookies = json.load(f)
+        await context.add_cookies(cookies)
+        print("✅ LinkedIn cookies loaded successfully")
 
         semaphore = asyncio.Semaphore(max_concurrent_tabs)
         global_seen = set()  # ✅ tracks all unique posts across all keywords
@@ -104,6 +149,7 @@ async def scrape_all_keywords_parallel(keywords: list[str], posts_per_keyword: i
                 page = await context.new_page()
                 try:
                     posts = await scrape_posts_on_page(page, search_url, posts_per_keyword, progress_bar)
+
                     # ✅ Filter out duplicates across keywords
                     unique_posts = []
                     for post in posts:
