@@ -4,6 +4,7 @@ import sys
 import time
 import socket
 import os
+import signal
 import streamlit as st
 import atexit
 
@@ -24,11 +25,20 @@ def start_fastapi():
         print("✅ FastAPI already running")
         return
 
-    CREATE_NO_WINDOW = 0x08000000  # Hide terminal in Windows
-    fastapi_process = subprocess.Popen(
-        [sys.executable, "-m", "uvicorn", "server:app", "--host", "0.0.0.0", "--port", str(FASTAPI_PORT)],
-        creationflags=CREATE_NO_WINDOW
-    )
+    cmd = [
+        sys.executable,
+        "-m", "uvicorn",
+        "server:app",
+        "--host", "0.0.0.0",
+        "--port", str(FASTAPI_PORT),
+    ]
+
+    if os.name == "nt":  # Windows
+        CREATE_NO_WINDOW = 0x08000000
+        fastapi_process = subprocess.Popen(cmd, creationflags=CREATE_NO_WINDOW)
+    else:  # Linux / macOS
+        fastapi_process = subprocess.Popen(cmd, preexec_fn=os.setsid)
+
     print(f"🚀 FastAPI started in background (PID={fastapi_process.pid})")
     time.sleep(2)  # give server time to boot
 
@@ -37,16 +47,70 @@ def stop_fastapi():
     """Stop FastAPI if this app started it."""
     global fastapi_process
     if fastapi_process and fastapi_process.poll() is None:
-        fastapi_process.terminate()
+        if os.name == "nt":
+            fastapi_process.terminate()
+        else:
+            os.killpg(os.getpgid(fastapi_process.pid), signal.SIGTERM)
         print("🛑 FastAPI stopped")
 
 
-# ✅ Ensure FastAPI runs only once (per Streamlit session)
+# Auto-start when Streamlit starts
 if "fastapi_started" not in st.session_state:
     start_fastapi()
-    st.session_state.fastapi_started = True
-    # register cleanup
-    atexit.register(stop_fastapi)
+    st.session_state["fastapi_started"] = True
+
+# Stop when Streamlit exits
+atexit.register(stop_fastapi)
+
+# # main.py (Streamlit entrypoint)
+# import subprocess
+# import sys
+# import time
+# import socket
+# import os
+# import streamlit as st
+# import atexit
+
+# FASTAPI_PORT = 8001
+# fastapi_process = None  # store background process
+
+
+# def is_port_in_use(port: int) -> bool:
+#     """Check if given port is already being used."""
+#     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+#         return s.connect_ex(("127.0.0.1", port)) == 0
+
+
+# def start_fastapi():
+#     """Start FastAPI only if it's not already running."""
+#     global fastapi_process
+#     if is_port_in_use(FASTAPI_PORT):
+#         print("✅ FastAPI already running")
+#         return
+
+#     CREATE_NO_WINDOW = 0x08000000  # Hide terminal in Windows
+#     fastapi_process = subprocess.Popen(
+#         [sys.executable, "-m", "uvicorn", "server:app", "--host", "0.0.0.0", "--port", str(FASTAPI_PORT)],
+#         creationflags=CREATE_NO_WINDOW
+#     )
+#     print(f"🚀 FastAPI started in background (PID={fastapi_process.pid})")
+#     time.sleep(2)  # give server time to boot
+
+
+# def stop_fastapi():
+#     """Stop FastAPI if this app started it."""
+#     global fastapi_process
+#     if fastapi_process and fastapi_process.poll() is None:
+#         fastapi_process.terminate()
+#         print("🛑 FastAPI stopped")
+
+
+# # ✅ Ensure FastAPI runs only once (per Streamlit session)
+# if "fastapi_started" not in st.session_state:
+#     start_fastapi()
+#     st.session_state.fastapi_started = True
+#     # register cleanup
+#     atexit.register(stop_fastapi)
 
 import os
 import re
