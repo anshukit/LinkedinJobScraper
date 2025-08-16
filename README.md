@@ -1,3 +1,2 @@
 # LinkedinJobScraper
 
-changes
