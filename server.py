@@ -1,75 +1,152 @@
+# import os
+# import sys
+# import asyncio
+# import json
+# from fastapi import FastAPI, Body
+# from pydantic import BaseModel
+# import uvicorn
+# import logging
+# from job_scraper import scrapJobsPost
+# from post_scraper import scrape_process_all_keywords
+
+# if sys.platform.startswith("win"):
+#     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+# from config import DATA_DIR
+
+# logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+# os.makedirs(DATA_DIR, exist_ok=True)
+
+# from fastapi.middleware.cors import CORSMiddleware
+
+# app = FastAPI()
+
+# # Allow Streamlit frontend to call FastAPI
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=["*"],  # ya specific ["http://52.168.130.75:8501"]
+#     allow_credentials=True,
+#     allow_methods=["*"],
+#     allow_headers=["*"],
+# )
+
+# class ScrapeRequest(BaseModel):
+#     experience: int
+#     total_posts: int
+#     mode: str
+#     keywords: list[str]   # ✅ new
+
+# # Unified FastAPI endpoint
+# @app.post("/scrape-linkedin")
+# async def scrape_linkedin(payload: ScrapeRequest = Body(...)):
+#     try:
+#         if payload.mode == "postData":
+#             await scrape_process_all_keywords(payload.experience, payload.total_posts, payload.keywords)
+#             return {"status": "success", "message": f"Scraped {payload.total_posts} posts with {payload.keywords}"}
+#         elif payload.mode == "jobsData":
+#             await scrapJobsPost(payload.experience, payload.total_posts, payload.keywords)
+#             return {"status": "success", "message": f"Scraped {payload.total_posts} jobs with {payload.keywords}"}
+#         else:
+#             return {
+#                 "status": "error",
+#                 "message": f"Invalid mode: {payload.mode}. Use 'all_keywords' or 'job_posts'.",
+#             }
+#     except Exception as e:
+#         logging.error(f"Error in /scrape-linkedin: {e}")
+#         return {
+#             "status": "error",
+#             "message": str(e),
+#         }
+
+# # Main entry point for running the script
+# if __name__ == "__main__":
+#     import argparse
+
+#     parser = argparse.ArgumentParser(description="Run LinkedIn Job Scraper")
+#     parser.add_argument("--mode", choices=["cli", "api"], default="cli", help="Run mode: cli or api")
+#     parser.add_argument("--experience", type=int, default=2, help="Years of experience (for CLI mode)")
+#     parser.add_argument("--total_posts", type=int, default=20, help="Total posts to scrape (for CLI mode)")
+#     parser.add_argument("--scrape_mode", choices=["all_keywords", "job_posts"], default="all_keywords", help="Scrape mode for CLI")
+#     args = parser.parse_args()
+
+#     if args.mode == "cli":
+#         print("Running in CLI mode")
+#         if args.scrape_mode == "postData":
+#             asyncio.run(scrape_process_all_keywords(args.experience, args.total_posts))
+#         elif args.scrape_mode == "jobsData":
+#             asyncio.run(scrapJobsPost(args.experience, args.total_posts))
+#     else:
+#         print("Running FastAPI server")
+#         uvicorn.run("server:app", host="0.0.0.0", port=8001, reload=False)
+
 import os
 import sys
 import asyncio
-import json
+import logging
+import uuid
 from fastapi import FastAPI, Body
 from pydantic import BaseModel
 import uvicorn
-import logging
+from fastapi.middleware.cors import CORSMiddleware
+
+# Import actual scrapers
 from job_scraper import scrapJobsPost
 from post_scraper import scrape_process_all_keywords
 
+# Windows fix
 if sys.platform.startswith("win"):
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-from config import DATA_DIR
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-os.makedirs(DATA_DIR, exist_ok=True)
 
+# ✅ Global task tracker (shared by all modules)
+# server.py
+from progress import tasks   # instead of defining tasks = {} here
+
+
+# FastAPI app
 app = FastAPI()
-# Define request model
+
+# Allow Streamlit frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # or ["http://52.168.130.75:8501"]
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# --------- MODELS ----------
 class ScrapeRequest(BaseModel):
     experience: int
     total_posts: int
-    mode: str  # "all_keywords" or "job_posts"
+    mode: str               # "postData" or "jobsData"
+    keywords: list[str]
 
-# Unified FastAPI endpoint
+# --------- ROUTES ----------
 @app.post("/scrape-linkedin")
 async def scrape_linkedin(payload: ScrapeRequest = Body(...)):
-    try:
-        if payload.mode == "postData":
-            # Call the function for scraping all keywords
-            await scrape_process_all_keywords(payload.experience, payload.total_posts)
-            return {
-                "status": "success",
-                "message": f"Scraped {payload.total_posts} posts with experience {payload.experience} years (all keywords).",
-            }
-        elif payload.mode == "jobsData":
-            # Call the function for scraping job posts
-            await scrapJobsPost(payload.experience, payload.total_posts)
-            return {
-                "status": "success",
-                "message": f"Scraped {payload.total_posts} job posts with experience {payload.experience} years.",
-            }
-        else:
-            return {
-                "status": "error",
-                "message": f"Invalid mode: {payload.mode}. Use 'all_keywords' or 'job_posts'.",
-            }
-    except Exception as e:
-        logging.error(f"Error in /scrape-linkedin: {e}")
-        return {
-            "status": "error",
-            "message": str(e),
-        }
+    task_id = str(uuid.uuid4())
+    tasks[task_id] = {"progress": 0, "status": "Starting...", "result": None}
 
-# Main entry point for running the script
+    async def runner():
+        try:
+            if payload.mode == "postData":
+                await scrape_process_all_keywords(payload.experience, payload.total_posts, payload.keywords, task_id=task_id)
+            elif payload.mode == "jobsData":
+                await scrapJobsPost(payload.experience, payload.total_posts, payload.keywords, task_id=task_id)
+            tasks[task_id]["status"] = "Completed ✅"
+        except Exception as e:
+            logging.error(f"Error in /scrape-linkedin: {e}")
+            tasks[task_id]["status"] = f"Error: {str(e)}"
+
+    asyncio.create_task(runner())
+
+    return {"task_id": task_id, "status": "started"}
+
+@app.get("/status/{task_id}")
+async def get_status(task_id: str):
+    return tasks.get(task_id, {"progress": 0, "status": "Unknown Task"})
+
+# --------- MAIN ----------
 if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser(description="Run LinkedIn Job Scraper")
-    parser.add_argument("--mode", choices=["cli", "api"], default="cli", help="Run mode: cli or api")
-    parser.add_argument("--experience", type=int, default=2, help="Years of experience (for CLI mode)")
-    parser.add_argument("--total_posts", type=int, default=20, help="Total posts to scrape (for CLI mode)")
-    parser.add_argument("--scrape_mode", choices=["all_keywords", "job_posts"], default="all_keywords", help="Scrape mode for CLI")
-    args = parser.parse_args()
-
-    if args.mode == "cli":
-        print("Running in CLI mode")
-        if args.scrape_mode == "postData":
-            asyncio.run(scrape_process_all_keywords(args.experience, args.total_posts))
-        elif args.scrape_mode == "jobsData":
-            asyncio.run(scrapJobsPost(args.experience, args.total_posts))
-    else:
-        print("Running FastAPI server")
-        uvicorn.run("server:app", host="0.0.0.0", port=8001, reload=False)
+    uvicorn.run("server:app", host="0.0.0.0", port=8001, reload=False)

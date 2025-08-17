@@ -1,129 +1,16 @@
-# main.py (Streamlit entrypoint)
-import subprocess
-import sys
-import time
-import socket
-import os
-import signal
-import streamlit as st
-import atexit
-
-FASTAPI_PORT = 8001
-fastapi_process = None  # store background process
-
-
-def is_port_in_use(port: int) -> bool:
-    """Check if given port is already being used."""
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        return s.connect_ex(("127.0.0.1", port)) == 0
-
-
-def start_fastapi():
-    """Start FastAPI only if it's not already running."""
-    global fastapi_process
-    if is_port_in_use(FASTAPI_PORT):
-        print("✅ FastAPI already running")
-        return
-
-    cmd = [
-        sys.executable,
-        "-m", "uvicorn",
-        "server:app",
-        "--host", "0.0.0.0",
-        "--port", str(FASTAPI_PORT),
-    ]
-
-    if os.name == "nt":  # Windows
-        CREATE_NO_WINDOW = 0x08000000
-        fastapi_process = subprocess.Popen(cmd, creationflags=CREATE_NO_WINDOW)
-    else:  # Linux / macOS
-        fastapi_process = subprocess.Popen(cmd, preexec_fn=os.setsid)
-
-    print(f"🚀 FastAPI started in background (PID={fastapi_process.pid})")
-    time.sleep(2)  # give server time to boot
-
-
-def stop_fastapi():
-    """Stop FastAPI if this app started it."""
-    global fastapi_process
-    if fastapi_process and fastapi_process.poll() is None:
-        if os.name == "nt":
-            fastapi_process.terminate()
-        else:
-            os.killpg(os.getpgid(fastapi_process.pid), signal.SIGTERM)
-        print("🛑 FastAPI stopped")
-
-
-# Auto-start when Streamlit starts
-if "fastapi_started" not in st.session_state:
-    start_fastapi()
-    st.session_state["fastapi_started"] = True
-
-# Stop when Streamlit exits
-atexit.register(stop_fastapi)
-
-# # main.py (Streamlit entrypoint)
-# import subprocess
-# import sys
-# import time
-# import socket
-# import os
-# import streamlit as st
-# import atexit
-
-# FASTAPI_PORT = 8001
-# fastapi_process = None  # store background process
-
-
-# def is_port_in_use(port: int) -> bool:
-#     """Check if given port is already being used."""
-#     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-#         return s.connect_ex(("127.0.0.1", port)) == 0
-
-
-# def start_fastapi():
-#     """Start FastAPI only if it's not already running."""
-#     global fastapi_process
-#     if is_port_in_use(FASTAPI_PORT):
-#         print("✅ FastAPI already running")
-#         return
-
-#     CREATE_NO_WINDOW = 0x08000000  # Hide terminal in Windows
-#     fastapi_process = subprocess.Popen(
-#         [sys.executable, "-m", "uvicorn", "server:app", "--host", "0.0.0.0", "--port", str(FASTAPI_PORT)],
-#         creationflags=CREATE_NO_WINDOW
-#     )
-#     print(f"🚀 FastAPI started in background (PID={fastapi_process.pid})")
-#     time.sleep(2)  # give server time to boot
-
-
-# def stop_fastapi():
-#     """Stop FastAPI if this app started it."""
-#     global fastapi_process
-#     if fastapi_process and fastapi_process.poll() is None:
-#         fastapi_process.terminate()
-#         print("🛑 FastAPI stopped")
-
-
-# # ✅ Ensure FastAPI runs only once (per Streamlit session)
-# if "fastapi_started" not in st.session_state:
-#     start_fastapi()
-#     st.session_state.fastapi_started = True
-#     # register cleanup
-#     atexit.register(stop_fastapi)
-
 import os
 import re
 import json
 import logging
-from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Dict
 from urllib.parse import unquote
-
+import time
 import requests
 import pandas as pd
 import streamlit as st
+import time   # to use time.sleep
+from datetime import datetime, timedelta
 
 from config import config
 from utils import DataProcessor
@@ -135,7 +22,8 @@ from selenium_urlfix import LinkedInLinkResolver
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("dashboard")
 
-SCRAPE_API_URL = os.getenv("SCRAPE_API_URL", "http://127.0.0.1:8001/scrape-linkedin")
+
+# SCRAPE_API_URL = "http://52.168.130.75:8001/scrape-linkedin"
 
 st.set_page_config(
     page_title="LinkedIn Scraper Dashboard",
@@ -144,6 +32,11 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+
+API_BASE = "http://52.168.130.75:8001"   # or server IP
+SCRAPE_API_URL = f"{API_BASE}/scrape-linkedin"
+STATUS_API_URL = f"{API_BASE}/status"
+from keywords_config import ALL_KEYWORDS
 # =========================
 # Helpers - Jobs Viewer
 # =========================
@@ -165,16 +58,16 @@ def parse_time_ago(time_str: str):
             return now
         m = re.search(r"(\d+)\s*minute", s)
         if m:
-            return now - timedelta(minutes=int(m.group(1)))
+            return now - datetime.timedelta(minutes=int(m.group(1)))
         h = re.search(r"(\d+)\s*hour", s)
         if h:
-            return now - timedelta(hours=int(h.group(1)))
+            return now - datetime.timedelta(hours=int(h.group(1)))
         d = re.search(r"(\d+)\s*day", s)
         if d:
-            return now - timedelta(days=int(d.group(1)))
+            return now - datetime.timedelta(days=int(d.group(1)))
         w = re.search(r"(\d+)\s*week", s)
         if w:
-            return now - timedelta(weeks=int(w.group(1)))
+            return now - datetime.timedelta(weeks=int(w.group(1)))
     except:
         return None
     return None
@@ -184,9 +77,9 @@ def get_time_category(time_str: str) -> str:
     if not dt:
         return "older-job"
     age = datetime.now() - dt
-    if age < timedelta(hours=24):
+    if age < datetime.timedelta(hours=24):
         return "recent-job"
-    if age < timedelta(days=7):
+    if age < datetime.timedelta(days=7):
         return "this-week-job"
     return "older-job"
 
@@ -446,28 +339,113 @@ def main():
 
     # Sidebar: Scraping Controls + Stats
     with st.sidebar:
+        # =========================
+        # Resume Upload
+        # =========================
+        st.header("📄 Upload Resume")
+        uploaded_resume = st.file_uploader("Upload your Resume (PDF)", type=["pdf"])
+
+        if uploaded_resume is not None:
+            resume_path = os.path.join("data", "resume.pdf")
+            os.makedirs("data", exist_ok=True)
+            with open(resume_path, "wb") as f:
+                f.write(uploaded_resume.read())
+            st.success("✅ Resume uploaded successfully!")
+
+        # =========================
+        # Scraping Controls
+        # =========================
         st.header("⚙️ Scraping Controls")
+
         exp = st.number_input("Years of Experience", min_value=0, max_value=50, value=2, step=1)
         total_posts = st.number_input("Total Posts", min_value=1, max_value=500, value=25, step=1)
         mode = st.selectbox("Scrape Mode", ["jobsData", "postData"])
+
+         
+        selected_keywords = st.sidebar.multiselect(
+            "Select Keywords",
+            options=ALL_KEYWORDS,
+            default=["Java Developer", "Python Developer", "Backend Developer"]
+        )
+        # 🚀 Start Scraping
         if st.button("🚀 Start Scraping", use_container_width=True):
-            payload = {"experience": exp, "total_posts": int(total_posts), "mode": mode}
-            try:
-                with st.spinner("Scraping in progress..."):
-                    res = requests.post(SCRAPE_API_URL, json=payload, timeout=180)
-                if res.status_code == 200:
-                    st.session_state["last_scrape_result"] = res.json()
-                    st.success("✅ Scraping triggered/completed.")
+            if not selected_keywords:
+                st.error("❌ Please select at least one keyword")
+            else:
+                payload = {
+                    "experience": exp,
+                    "total_posts": int(total_posts),
+                    "mode": mode,
+                    "keywords": selected_keywords,
+                }
+                try:
+                    res = requests.post(SCRAPE_API_URL, json=payload, timeout=240)
+                    if res.status_code == 200:
+                        data = res.json()
+                        task_id = data.get("task_id")
+                        if not task_id:
+                            st.error("❌ Task ID not returned")
+                        else:
+                            st.session_state["active_task_id"] = task_id
+                            st.success(f"✅ Task started (ID={task_id})")
+                    else:
+                        st.error(f"❌ Scrape failed (HTTP {res.status_code})")
+                except Exception as e:
+                    st.error(f"Error: {e}")
+
+        # 📊 Progress Tracking
+        if "active_task_id" in st.session_state:
+            task_id = st.session_state["active_task_id"]
+
+            st.markdown("---")
+            st.subheader("📊 Progress")
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+
+            while True:
+                try:
+                    res = requests.get(f"{STATUS_API_URL}/{task_id}", timeout=240).json()
+                    progress = res.get("progress", 0)
+                    status = res.get("status", "Starting...")
+
+                    progress_bar.progress(progress)
+                    status_text.text(status)
+
+                    if progress >= 100 or "Error" in status:
+                        break
+                    time.sleep(2)
+
+                except Exception as e:
+                    st.error(f"⚠️ Error fetching status: {e}")
+                    break
+
+            if "Error" in status:
+                st.error(f"❌ Failed: {status}")
+            else:
+                st.success("🎉 Completed Successfully!")
+
+                # 📥 Mail Sent Download
+                results_dir = Path("data")
+                mail_sent_path = results_dir / "mail_sent_posts.jsonl"
+                if mode=="postData" and mail_sent_path.exists() and mail_sent_path.stat().st_size > 0:
+                    with open(mail_sent_path, "rb") as f:
+                        st.download_button(
+                            label="⬇️ Download Mail Sent Posts",
+                            data=f,
+                            file_name=mail_sent_path.name,
+                            mime="application/json",
+                            use_container_width=True,
+                        )
                 else:
-                    st.error(f"❌ Scrape failed (HTTP {res.status_code})")
-            except Exception as e:
-                st.error(f"Error: {e}")
+                    st.info("📭 No mail sent records available yet.")
+
         if st.button("🔄 Refresh Data", use_container_width=True):
-            # Clear all cached data functions
             st.cache_data.clear()
-            # Force rerun the whole app
             st.rerun()
 
+        # =========================
+        # Quick Stats
+        # =========================
         st.markdown("---")
         st.subheader("📈 Quick Stats")
         try:
@@ -486,7 +464,9 @@ def main():
             st.info("Run scraper once to populate stats.")
             logger.debug(e)
 
+    # =========================
     # Tabs
+    # =========================
     tab1, tab2, tab3, tab4 = st.tabs(["💼 Jobs Data", "🔗 Apply Links", "📊 Analytics", "🧰 System Status"])
 
     with tab1:
