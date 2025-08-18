@@ -42,7 +42,7 @@ async def analyze_batch(batch, resume_summary, experience, semaphore):
         results.append(parsed)
     return results
 
-async def analyze_posts_batch(post_list, experience, task_id=None, batch_size=7):
+async def analyze_posts_batch(post_list, experience, task_id=None, batch_size=8):
     resume_text = extract_text_from_pdf(RESUME_PATH)
     resume_summary = generate_resume_summary(resume_text)
 

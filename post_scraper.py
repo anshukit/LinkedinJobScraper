@@ -6,7 +6,7 @@ from job_scraper import filter_jobs_by_experience
 from eligibility import load_resume_text, analyze_posts_batch
 from mailer import send_emails_batch
 from filter import filter_eligible_posts
-from progress import tasks
+from progress import init_task, tasks
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -22,9 +22,8 @@ def save_jsonl(data_list, file_path: str) -> None:
 
 async def scrape_process_all_keywords(experience: int, total_posts: int, keywords: list[str], task_id=None):
     posts_per_keyword = max(1, total_posts // len(keywords))
-
     if task_id:
-        tasks[task_id]["progress"] = 0
+        init_task(task_id, total_posts=total_posts)
         tasks[task_id]["status"] = "Scraping started..."
 
     all_posts = await scrape_all_keywords_parallel(keywords, posts_per_keyword, 2, task_id=task_id)
@@ -64,8 +63,9 @@ async def scrape_process_all_keywords(experience: int, total_posts: int, keyword
         tasks[task_id]["progress"] = 80
         tasks[task_id]["status"] = "Mailing started..."
 
-    send_emails_batch(mail_list, resume_text, task_id=task_id)
+    result = send_emails_batch(mail_list, resume_text, task_id=task_id)
 
     if task_id:
         tasks[task_id]["progress"] = 100
         tasks[task_id]["status"] = "Pipeline completed ✅"
+        tasks[task_id]["result"] = result   # ✅ Save stats for API response

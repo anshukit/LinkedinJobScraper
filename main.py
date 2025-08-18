@@ -365,7 +365,7 @@ def main():
         selected_keywords = st.sidebar.multiselect(
             "Select Keywords",
             options=ALL_KEYWORDS,
-            default=["Java Developer", "Python Developer", "Backend Developer"]
+            default=["Java Developer", "Python Developer"]
         )
         # 🚀 Start Scraping
         if st.button("🚀 Start Scraping", use_container_width=True):
@@ -418,26 +418,21 @@ def main():
                 except Exception as e:
                     st.error(f"⚠️ Error fetching status: {e}")
                     break
-
+            
             if "Error" in status:
                 st.error(f"❌ Failed: {status}")
             else:
                 st.success("🎉 Completed Successfully!")
-
-                # 📥 Mail Sent Download
-                results_dir = Path("data")
-                mail_sent_path = results_dir / "mail_sent_posts.jsonl"
-                if mode=="postData" and mail_sent_path.exists() and mail_sent_path.stat().st_size > 0:
-                    with open(mail_sent_path, "rb") as f:
-                        st.download_button(
-                            label="⬇️ Download Mail Sent Posts",
-                            data=f,
-                            file_name=mail_sent_path.name,
-                            mime="application/json",
-                            use_container_width=True,
-                        )
-                else:
-                    st.info("📭 No mail sent records available yet.")
+                if mode == "postData":
+                    result = res.get("result", {})
+                    if result:
+                        st.subheader("📧 Email Sending Summary")
+                        total_sent = sum(v.get("sent", 0) for v in result.values())
+                        total_skipped = sum(v.get("skipped", 0) for v in result.values())
+                        st.write(f"✅ **Total Sent:** {total_sent}")
+                        st.write(f"⚠️ **Total Skipped:** {total_skipped}")
+                    else:
+                        st.info("📭 No email sending records available.")
 
         if st.button("🔄 Refresh Data", use_container_width=True):
             st.cache_data.clear()

@@ -6,12 +6,11 @@ from playwright.async_api import async_playwright, TimeoutError
 from tqdm import tqdm
 import asyncio
 from progress import tasks
- # ✅ global progress tracker
 
 load_dotenv()
 LI_AT = os.getenv("LINKEDIN_LI_AT")
 
-async def scrape_posts_on_page(page, search_url, max_posts, progress_bar, task_id=None, total_posts=100):
+async def scrape_posts_on_page(page, search_url, max_posts, progress_bar, task_id=None):
     posts_data = []
     retries = 3
     
@@ -60,9 +59,9 @@ async def scrape_posts_on_page(page, search_url, max_posts, progress_bar, task_i
             end = text.rfind("Like")
             if start != -1 and end != -1 and end > start:
                 content = text[start + 6:end].strip()
-                content = re.sub(r'#\w+', '', content)
-                content = re.sub(r'\bhashtag\b', '', content, flags=re.IGNORECASE)
-                content = re.sub(r'\s{2,}', ' ', content).strip()
+                content = re.sub(r'#\\w+', '', content)
+                content = re.sub(r'\\bhashtag\\b', '', content, flags=re.IGNORECASE)
+                content = re.sub(r'\\s{2,}', ' ', content).strip()
             else:
                 content = "[❌ Could not extract clean content]"
 
@@ -71,11 +70,15 @@ async def scrape_posts_on_page(page, search_url, max_posts, progress_bar, task_i
                 collected.add(html)
                 progress_bar.update(1)
 
-                # ✅ update Streamlit progress (0-20%)
-                if task_id:
-                    percent = int((len(posts_data) / total_posts) * 20)
+                # ✅ update combined progress (0-20% reserved for scraping)
+                if task_id and tasks.get(task_id):
+                    tasks[task_id]["scraped"] += 1
+                    done = tasks[task_id]["scraped"]
+                    total = tasks[task_id]["total_posts"] or 1
+                    percent = int((done / total) * 20)
                     tasks[task_id]["progress"] = percent
-                    tasks[task_id]["status"] = f"Scraping {percent}%"
+                    tasks[task_id]["status"] = f"Scraping {int((done/total)*100)}%"
+
 
             if len(posts_data) >= max_posts:
                 break
@@ -122,7 +125,7 @@ async def scrape_all_keywords_parallel(keywords: list[str], posts_per_keyword: i
                 search_url = f"https://www.linkedin.com/search/results/content/?datePosted=%22past-24h%22&keywords={encoded_query}&origin=FACETED_SEARCH"
                 page = await context.new_page()
                 try:
-                    posts = await scrape_posts_on_page(page, search_url, posts_per_keyword, progress_bar, task_id, total_posts)
+                    posts = await scrape_posts_on_page(page, search_url, posts_per_keyword, progress_bar, task_id)
                     unique_posts = []
                     for post in posts:
                         if post not in global_seen:

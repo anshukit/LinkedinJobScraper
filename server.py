@@ -66,8 +66,10 @@ async def scrape_linkedin(payload: ScrapeRequest = Body(...)):
 
 @app.get("/status/{task_id}")
 async def get_status(task_id: str):
-    return tasks.get(task_id, {"progress": 0, "status": "Unknown Task"})
-
+    task = tasks.get(task_id)
+    if not task:
+        return {"error": "Task not found"}
+    return task   
 # --------- MAIN ----------
 if __name__ == "__main__":
     uvicorn.run("server:app", host="0.0.0.0", port=8001, reload=False)
